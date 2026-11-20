@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">תאוריה בקטנה</string>
+    <string name="title_activity_main">תאוריה בקטנה</string>
+    <string name="package_name">com.matanjerbi.theory</string>
+    <string name="custom_url_scheme">com.matanjerbi.theory</string>
+</resources>
