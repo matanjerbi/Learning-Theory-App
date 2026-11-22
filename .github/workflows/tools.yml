@@ -3,6 +3,9 @@ name: Tools — fetch official sign table
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   fetch:
     runs-on: ubuntu-latest
@@ -15,7 +18,11 @@ jobs:
           curl -sSL --fail -o out/luach-2018.pdf "https://www.gov.il/BlobFolder/dynamiccollectorresultitem/answer-freedom-information-3980/he/%D7%9C%D7%95%D7%97%20%D7%AA%D7%9E%D7%A8%D7%95%D7%A8%D7%99%D7%9D%20%D7%99%D7%A0%D7%95%D7%90%D7%A8%202018.pdf" || true
           for f in out/*.pdf; do pdftotext -layout "$f" "${f%.pdf}.txt" || true; pdftotext -raw "$f" "${f%.pdf}.raw.txt" || true; done
           ls -la out
-      - uses: actions/upload-artifact@v4
-        with:
-          name: sign-table
-          path: out/
+      - name: Save text to branch tools-data
+        run: |
+          cd out && rm -f *.pdf
+          git init -q && git checkout -q -b tools-data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898699+github-actions[bot]@users.noreply.github.com"
+          git add -A && git commit -q -m "official sign table text"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" tools-data
