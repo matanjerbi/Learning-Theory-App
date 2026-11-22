@@ -168,14 +168,14 @@
 
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:flex-end">
-          <div><div class="muted">סיכוי לעבור את המבחן היום</div><div class="ready-num">${pctD(S.passChance)}</div></div>
+          <div><div class="muted">מוכנות למבחן</div><div class="ready-num">${pctD(S.readiness)}</div></div>
           <button class="btn ghost small" style="width:auto;margin:0" id="b-topics">לפי נושאים</button>
         </div>
-        <div class="bar"><i style="width:${(S.passChance * 100).toFixed(2)}%"></i></div>
-        <div class="stat-row"><span>אחוז הצלחה צפוי בשאלה</span><b>${pctD(S.accuracy)}</b></div>
-        <div class="stat-row"><span>שאלות שאתה יודע</span><b><span dir="ltr">${num(S.known)} / ${num(S.total)}</span> <span class="muted">(${pctD(S.coverage)})</span></b></div>
+        <div class="bar"><i style="width:${(S.readiness * 100).toFixed(2)}%"></i></div>
+        <div class="stat-row"><span>סיכוי לעבור (26 מתוך 30)</span><b>${pctD(S.passChance)}</b></div>
+        <div class="stat-row"><span>שאלות שאתה יודע</span><b><span dir="ltr">${num(S.known)} / ${num(S.total)}</span> <span class="muted">(${pctD(S.known / S.total)})</span></b></div>
         <div class="stat-row"><span>קצב: ב-7 הימים האחרונים</span><b>${week > 0 ? plus(num(week)) + ' שאלות' : '—'}</b></div>
-        ${S.seen < 20 ? '<p class="muted">ההערכה מתחדדת ככל שעונים על יותר שאלות.</p>' : ''}
+        ${missingTopics(S)}
       </div>
 
       ${mistakes ? `<button class="btn ghost" id="b-mist">🔁 לתרגל טעויות (${mistakes})</button>` : ''}
@@ -192,9 +192,9 @@
   }
 
   function examGate(chance) {
-    if (chance >= 0.7 || settings.examUnlockedOnce) return chooseExamMode();
+    if (chance >= 0.5 || settings.examUnlockedOnce) return chooseExamMode();
     modal(`<h2>עוד קצת לפני מבחן</h2>
-      <p>מבחן מלא שווה יותר כשהסיכוי לעבור מעל 70%. כרגע: <b>${pctD(chance)}</b>.</p>
+      <p>מבחן מלא שווה יותר כשהסיכוי לעבור מעל 50%. כרגע: <b>${pctD(chance)}</b>.</p>
       <p class="muted">אין לחץ — אפשר גם עכשיו, רק לדעת שהציון עוד לא מייצג.</p>
       <button class="btn" id="m-learn">ללמוד עוד סבב</button>
       <button class="btn ghost" id="m-anyway">בכל זאת להתחיל</button>`, m => {
@@ -218,13 +218,19 @@
     const rows = Object.entries(SRS.TOPICS).map(([k, name]) => {
       const t = S.topics[k];
       if (!t) return '';
-      return `<button class="topic" data-t="${k}"><span class="name">${name}<br><span class="muted">יודע ${num(t.known)} / ${num(t.total)}</span></span>
-        <span class="bar"><i style="width:${(t.accuracy * 100).toFixed(2)}%"></i></span><span class="pct">${pctD(t.accuracy)}</span></button>`;
+      return `<button class="topic" data-t="${k}"><span class="name">${name}<br><span class="muted">${pctD(t.weight)} מהמבחן · נדגמו ${num(t.sampled)}</span><br><span class="muted">תורם ${pctD(t.contribution)} למוכנות</span></span>
+        <span class="bar"><i style="width:${(t.score * 100).toFixed(2)}%"></i></span><span class="pct">${pctD(t.score)}</span></button>`;
     }).join('');
     app.innerHTML = `<div class="top"><button class="iconbtn" id="b-back">→</button><b>לפי נושאים</b><span style="width:48px"></span></div>
-      <p class="muted">האחוז = הסיכוי שתענה נכון על שאלה מהנושא במבחן. לחיצה מתחילה סבב רק מהנושא.</p>${rows}`;
+      <p class="muted">האחוז = כמה אתה יודע את הנושא לפי השאלות שנדגמו ממנו. כל נושא תורם למוכנות לפי החלק שלו במבחן. לחיצה מתחילה סבב רק מהנושא.</p>${rows}`;
     app.querySelector('#b-back').onclick = () => go('home');
     app.querySelectorAll('.topic').forEach(b => b.onclick = () => go('session', { topic: b.dataset.t }));
+  }
+
+  // נושאים שעוד לא נדגמו — שווים 0 עד שעונים עליהם
+  function missingTopics(S) {
+    const miss = Object.entries(SRS.TOPICS).filter(([k]) => S.topics[k] && S.topics[k].sampled === 0).map(([, n]) => n);
+    return miss.length ? `<p class="muted">עוד לא נדגמו: ${miss.join(', ')} — הם שווים 0 עד שתענה עליהם.</p>` : '';
   }
 
   // סיכום התקדמות בסוף סבב — מספרים מדויקים, בלי עיגול
@@ -233,8 +239,8 @@
     const d = after.passChance - before.passChance;
     return `<div class="card">
       <div class="stat-row"><span>שאלות שאתה יודע</span><b><span dir="ltr">${num(after.known)} / ${num(after.total)}</span>${gained > 0 ? ` <span class="up">${plus(gained)}</span>` : ''}</b></div>
+      <div class="stat-row"><span>מוכנות</span><b>${pctD(after.readiness)} <span class="${after.readiness >= before.readiness ? 'up' : 'down'}">${signD(after.readiness - before.readiness)}</span></b></div>
       <div class="stat-row"><span>סיכוי לעבור</span><b>${pctD(after.passChance)} <span class="${d >= 0 ? 'up' : 'down'}">${signD(d)}</span></b></div>
-      <div class="stat-row"><span>אחוז הצלחה צפוי</span><b>${pctD(after.accuracy)} <span class="${after.accuracy >= before.accuracy ? 'up' : 'down'}">${signD(after.accuracy - before.accuracy)}</span></b></div>
     </div>`;
   }
 

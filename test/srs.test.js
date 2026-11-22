@@ -35,24 +35,26 @@ assert.equal(S.currentStreak(st, now + 4 * S.DAY), 0);
 // data integrity
 Q.forEach(q => { assert(q.q && q.o.length >= 2 && q.c >= 0 && q.c < q.o.length, q.id); });
 const fs = require('fs'); Q.filter(q => q.img).forEach(q => assert(fs.existsSync('www/img/' + q.img), q.img));
-// smart stats
+// smart stats (topic-sampled)
 let ss = S.stats(Q, {}, now);
-assert(ss.passChance >= 0 && ss.passChance < 0.01, 'fresh user should be ~0');
-assert.equal(ss.known, 0);
+assert.equal(ss.readiness, 0); assert.equal(ss.known, 0);
 assert(Math.abs(S.binomTail(30, 0.5, 0) - 1) < 1e-9);
 assert(Math.abs(S.binomTail(30, 1, 26) - 1) < 1e-9);
-assert(S.binomTail(30, 0.9, 26) > S.binomTail(30, 0.8, 26));
-// answering correctly raises the chance; first-try result stored
-let p2 = {}; Q.slice(0, 50).forEach(q => p2[q.id] = S.grade(null, true, now));
-assert.equal(p2[Q[0].id].f, 1);
-const s2 = S.stats(Q, p2, now);
-assert(s2.passChance > ss.passChance && s2.known === 50);
-// mistakes lower the estimate vs all-correct
-let p3 = {}; Q.slice(0, 50).forEach((q, i) => p3[q.id] = S.grade(null, i % 2 === 0, now));
-assert(S.stats(Q, p3, now).accuracy < s2.accuracy);
-// forgetting: long overdue lowers the estimate
-const late = S.stats(Q, p2, now + 60 * S.DAY);
-assert(late.accuracy < s2.accuracy);
+// one topic fully known (big sample) -> readiness ~ that topic's share, other topics 0
+const signs = Q.filter(q => q.t === 'signs');
+let pt = {}; signs.slice(0, 60).forEach(q => pt[q.id] = { b: 4, d: now + 9 * S.DAY, s: 3, w: 0 });
+const st1 = S.stats(Q, pt, now);
+const share = signs.length / Q.length;
+assert(st1.readiness > share * 0.9 && st1.readiness <= share, 'one topic ≈ its share');
+assert.equal(st1.topics.laws.score, 0);
+// a mistake in that topic lowers readiness
+pt[signs[0].id] = S.grade(pt[signs[0].id], false, now);
+assert(S.stats(Q, pt, now).readiness < st1.readiness);
+// small samples don't give 100%
+let p2 = {}; Q.filter(q => q.t === 'vehicle').slice(0, 2).forEach(q => p2[q.id] = S.grade(null, true, now));
+assert(S.stats(Q, p2, now).topics.vehicle.score < 0.5);
+// forgetting lowers it
+assert(S.stats(Q, pt, now + 90 * S.DAY).readiness < S.stats(Q, pt, now).readiness);
 // weekly gain
 let h = S.recordHistory({}, 10, now - 10 * S.DAY); h = S.recordHistory(h, 30, now - 8 * S.DAY); h = S.recordHistory(h, 55, now);
 assert.equal(S.weeklyGain(h, 55, now), 25);
