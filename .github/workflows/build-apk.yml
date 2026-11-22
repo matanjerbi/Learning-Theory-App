@@ -90,6 +90,8 @@ jobs:
         run: |
           mkdir -p out
           cp android/app/build/outputs/apk/debug/app-debug.apk "out/Theory-App-v1.0.${BUILD_NUMBER}.apk"
+          # שם קבוע — כדי שקישור אחד תמיד יוריד את הגרסה האחרונה
+          cp android/app/build/outputs/apk/debug/app-debug.apk out/Theory-App.apk
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
