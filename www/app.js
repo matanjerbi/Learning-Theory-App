@@ -35,6 +35,26 @@
   }
   applyLook();
 
+  // ---------- מילון תמרורים ----------
+  const SIGNS = window.SIGNS || {};
+  // מספרי התמרורים שמופיעים בשאלה: תשובות שהן רק מספר, ומספרים שמוזכרים בשאלה עצמה
+  function signsIn(q) {
+    const found = [];
+    const add = n => { if (SIGNS[n] && !found.includes(n)) found.push(n); };
+    q.o.forEach(o => { const m = o.trim().match(/^(\d{3}פ?)\.?$/); if (m) add(m[1]); });
+    (q.q.match(/\b\d{3}פ?\b/g) || []).forEach(add);
+    return found;
+  }
+  // הסבר תמרורים: מה כל מספר אומר, והתשובה הנכונה מודגשת
+  function signNotes(q) {
+    const list = signsIn(q);
+    if (!list.length) return '';
+    const right = (q.o[q.c].trim().match(/^(\d{3}פ?)/) || [])[1];
+    return `<div class="signs-box"><div class="signs-title">🚦 מה כל תמרור אומר:</div>` +
+      list.map(n => `<div class="sign-row${n === right ? ' ok' : ''}"><b dir="ltr">${n}</b><span>${esc(SIGNS[n])}</span>${n === right ? '<span class="tick">✓</span>' : ''}</div>`).join('') +
+      `</div>`;
+  }
+
   // ---------- עזרים ----------
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pct = x => Math.round(x * 100);
@@ -299,7 +319,7 @@
         const pos = Math.min(items.length, i + 3);
         items.splice(pos, 0, { q, kind: 'mc', retry: true });
       }
-      const why = q.e ? `<div class="why">💡 ${esc(q.e)}</div>` : '';
+      const why = (q.e ? `<div class="why">💡 ${esc(q.e)}</div>` : '') + signNotes(q);
       const fb = correct
         ? `<div class="feedback ok">${pick(PRAISE)}${why}</div>`
         : `<div class="feedback bad">לא נורא — התשובה הנכונה מסומנת בירוק.${!item.retry ? '<div class="why">היא תחזור עוד רגע.</div>' : ''}${why}</div>`;
@@ -440,7 +460,7 @@
         progress[q.id] = SRS.grade(progress[q.id], correct); save();
         results.push(correct); haptic(correct ? 'ok' : 'bad');
         const right = order.indexOf(q.c) + 1;
-        app.querySelector('#fb').innerHTML = `<div class="feedback ${correct ? 'ok' : 'bad'}">${correct ? pick(PRAISE) : 'התשובה הנכונה: ' + right + ' — ' + esc(q.o[q.c])}${q.e ? `<div class="why">💡 ${esc(q.e)}</div>` : ''}</div>
+        app.querySelector('#fb').innerHTML = `<div class="feedback ${correct ? 'ok' : 'bad'}">${correct ? pick(PRAISE) : 'התשובה הנכונה: ' + right + ' — ' + esc(q.o[q.c])}${q.e ? `<div class="why">💡 ${esc(q.e)}</div>` : ''}${signNotes(q)}</div>
           <button class="btn" id="b-next">${i + 1 >= items.length ? 'סיום' : 'הבא ←'}</button>`;
         if (!correct) speech.speak('התשובה הנכונה היא ' + right + '. ' + q.o[q.c]);
         app.querySelector('#b-next').scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -505,7 +525,7 @@
         ${wrong.length ? '<h2>מה פספסת</h2>' + wrong.map(q => `<div class="card mistake"><b>${esc(q.q)}</b>
           ${q.img ? `<img class="qimg" src="img/${q.img}">` : ''}
           <p>✅ ${esc(q.o[q.c])}</p>${answers[q.id] !== undefined ? `<p class="muted">❌ ענית: ${esc(q.o[answers[q.id]])}</p>` : '<p class="muted">לא נענתה</p>'}
-          ${q.e ? `<p class="muted">💡 ${esc(q.e)}</p>` : ''}</div>`).join('') : ''}`;
+          ${q.e ? `<p class="muted">💡 ${esc(q.e)}</p>` : ''}${signNotes(q)}</div>`).join('') : ''}`;
       app.querySelector('#b-home').onclick = () => go('home');
       cleanup = null;
     }

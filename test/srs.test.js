@@ -59,4 +59,10 @@ assert(S.stats(Q, pt, now + 90 * S.DAY).readiness < S.stats(Q, pt, now).readines
 let h = S.recordHistory({}, 10, now - 10 * S.DAY); h = S.recordHistory(h, 30, now - 8 * S.DAY); h = S.recordHistory(h, 55, now);
 assert.equal(S.weeklyGain(h, 55, now), 25);
 assert.equal(S.weeklyGain(S.recordHistory({}, 12, now), 12, now), 12);
+// sign dictionary coverage: every sign number used as an answer option has a meaning (except a few unclear ones)
+global.window.SIGNS = undefined; require('../www/signs.js'); const SG = global.window.SIGNS;
+const optNums = new Set(); Q.forEach(q => q.o.forEach(o => { const m = o.trim().match(/^(\d{3}פ?)\.?$/); if (m) optNums.add(m[1]); }));
+const missing = [...optNums].filter(n => !SG[n]);
+assert(missing.length <= 4, 'missing sign meanings: ' + missing.join(','));
+console.log('sign dictionary covers', optNums.size - missing.length, 'of', optNums.size, 'option numbers; missing:', missing.join(',') || '-');
 console.log('all tests passed —', Q.length, 'questions');

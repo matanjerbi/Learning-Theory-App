@@ -128,3 +128,12 @@ ul.plain { padding-right: 20px; margin: 6px 0; }
 [dir="ltr"] { unicode-bidi: isolate; direction: ltr; display: inline-block; }
 .up { color: var(--ok); font-weight: 700; }
 .down { color: var(--bad); font-weight: 700; }
+.signs-box { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; margin-top: 10px; color: var(--ink); font-weight: 400; }
+.signs-title { font-weight: 700; font-size: .9em; margin-bottom: 4px; }
+.sign-row { display: flex; gap: 10px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--line); font-size: .92em; }
+.sign-row:first-of-type { border-top: 0; }
+.sign-row b { flex: none; min-width: 42px; text-align: center; background: var(--line); border-radius: 8px; padding: 1px 6px; }
+.sign-row span:not(.tick) { flex: 1; }
+.sign-row.ok b { background: var(--ok); color: #fff; }
+.sign-row.ok { color: var(--ok); font-weight: 600; }
+.tick { color: var(--ok); font-weight: 800; }
