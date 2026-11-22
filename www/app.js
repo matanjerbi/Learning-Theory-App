@@ -14,11 +14,19 @@
   };
   let progress = store.get('progress', {});
   let streak = store.get('streak', null);
+  let history = store.get('history', {});
   let settings = Object.assign({
     len: 5, fs: 'normal', spacing: false, autoRead: false, rate: 'normal',
     remind: false, remindHour: 19, remindMin: 0, examUnlockedOnce: false
   }, store.get('settings', {}));
-  const save = () => { store.set('progress', progress); store.set('streak', streak); store.set('settings', settings); };
+  const save = () => { store.set('progress', progress); store.set('streak', streak); store.set('settings', settings); store.set('history', history); };
+  // רושם כמה שאלות אתה יודע היום (לקצב ההתקדמות) ומחזיר את הסטטיסטיקה העדכנית
+  function snapshot() {
+    const s = SRS.stats(Q, progress);
+    history = SRS.recordHistory(history, s.known);
+    store.set('history', history);
+    return s;
+  }
 
   function applyLook() {
     const fs = { normal: '19px', large: '22px', huge: '25px' }[settings.fs] || '19px';
@@ -30,6 +38,21 @@
   // ---------- עזרים ----------
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pct = x => Math.round(x * 100);
+  // אחוזים בלי עיגול: ספרה אחרי הנקודה, ולמספרים קטנים מ-1% — שתי ספרות משמעותיות (למשל 0.0031%)
+  function fmtNum(v) {
+    const a = Math.abs(v);
+    if (a === 0) return '0';
+    if (a < 1) return a.toPrecision(2);
+    return a.toFixed(1);
+  }
+  const pctD = x => { const v = x * 100; return '<span dir="ltr">' + (v > 0 && v < 0.0001 ? '&lt;0.0001' : fmtNum(v)) + '%</span>'; };
+  const signD = x => {
+    const v = x * 100;
+    if (Math.abs(v) < 0.0001) return '';
+    return '<span dir="ltr">' + (v > 0 ? '+' : '−') + fmtNum(v) + '</span>';
+  };
+  const plus = n => '<span dir="ltr">+' + n + '</span>';
+  const num = n => n.toLocaleString('he-IL');
   const pick = arr => arr[Math.floor(Math.random() * arr.length)];
   const PRAISE = ['יפה!', 'בול!', 'מעולה!', 'נכון!', 'אלוף!', 'יש!'];
   const LETTERS = ['א', 'ב', 'ג', 'ד', 'ה'];
@@ -124,7 +147,8 @@
 
   // ---------- מסך בית ----------
   function renderHome() {
-    const ready = SRS.readiness(Q, progress);
+    const S = snapshot();
+    const week = SRS.weeklyGain(history, S.known);
     const st = SRS.currentStreak(streak);
     const dueCount = Q.filter(q => SRS.isDue(progress[q.id], Date.now())).length;
     const mistakes = Q.filter(q => progress[q.id] && progress[q.id].w > 0 && progress[q.id].b < 3).length;
@@ -144,10 +168,14 @@
 
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:flex-end">
-          <div><div class="muted">כמה אני מוכן למבחן</div><div class="ready-num">${pct(ready)}%</div></div>
+          <div><div class="muted">סיכוי לעבור את המבחן היום</div><div class="ready-num">${pctD(S.passChance)}</div></div>
           <button class="btn ghost small" style="width:auto;margin:0" id="b-topics">לפי נושאים</button>
         </div>
-        <div class="bar"><i style="width:${pct(ready)}%"></i></div>
+        <div class="bar"><i style="width:${(S.passChance * 100).toFixed(2)}%"></i></div>
+        <div class="stat-row"><span>אחוז הצלחה צפוי בשאלה</span><b>${pctD(S.accuracy)}</b></div>
+        <div class="stat-row"><span>שאלות שאתה יודע</span><b><span dir="ltr">${num(S.known)} / ${num(S.total)}</span> <span class="muted">(${pctD(S.coverage)})</span></b></div>
+        <div class="stat-row"><span>קצב: ב-7 הימים האחרונים</span><b>${week > 0 ? plus(num(week)) + ' שאלות' : '—'}</b></div>
+        ${S.seen < 20 ? '<p class="muted">ההערכה מתחדדת ככל שעונים על יותר שאלות.</p>' : ''}
       </div>
 
       ${mistakes ? `<button class="btn ghost" id="b-mist">🔁 לתרגל טעויות (${mistakes})</button>` : ''}
@@ -159,14 +187,14 @@
     app.querySelector('#b-settings').onclick = () => go('settings');
     app.querySelector('#b-info').onclick = () => go('info');
     app.querySelector('#b-audio').onclick = () => go('audio', {});
-    app.querySelector('#b-exam').onclick = () => examGate(ready);
+    app.querySelector('#b-exam').onclick = () => examGate(S.passChance);
     const bm = app.querySelector('#b-mist'); if (bm) bm.onclick = () => go('session', { mistakes: true });
   }
 
-  function examGate(ready) {
-    if (ready >= 0.7 || settings.examUnlockedOnce) return chooseExamMode();
+  function examGate(chance) {
+    if (chance >= 0.7 || settings.examUnlockedOnce) return chooseExamMode();
     modal(`<h2>עוד קצת לפני מבחן</h2>
-      <p>מבחן מלא שווה יותר כשהמוכנות מעל 70%. כרגע: <b>${pct(ready)}%</b>.</p>
+      <p>מבחן מלא שווה יותר כשהסיכוי לעבור מעל 70%. כרגע: <b>${pctD(chance)}</b>.</p>
       <p class="muted">אין לחץ — אפשר גם עכשיו, רק לדעת שהציון עוד לא מייצג.</p>
       <button class="btn" id="m-learn">ללמוד עוד סבב</button>
       <button class="btn ghost" id="m-anyway">בכל זאת להתחיל</button>`, m => {
@@ -186,16 +214,28 @@
   }
 
   function renderTopics() {
+    const S = SRS.stats(Q, progress);
     const rows = Object.entries(SRS.TOPICS).map(([k, name]) => {
-      const r = SRS.readiness(Q, progress, k);
-      const n = Q.filter(q => q.t === k).length;
-      return `<button class="topic" data-t="${k}"><span class="name">${name}<br><span class="muted">${n} שאלות</span></span>
-        <span class="bar"><i style="width:${pct(r)}%"></i></span><span class="pct">${pct(r)}%</span></button>`;
+      const t = S.topics[k];
+      if (!t) return '';
+      return `<button class="topic" data-t="${k}"><span class="name">${name}<br><span class="muted">יודע ${num(t.known)} / ${num(t.total)}</span></span>
+        <span class="bar"><i style="width:${(t.accuracy * 100).toFixed(2)}%"></i></span><span class="pct">${pctD(t.accuracy)}</span></button>`;
     }).join('');
     app.innerHTML = `<div class="top"><button class="iconbtn" id="b-back">→</button><b>לפי נושאים</b><span style="width:48px"></span></div>
-      <p class="muted">לחיצה על נושא מתחילה סבב רק ממנו.</p>${rows}`;
+      <p class="muted">האחוז = הסיכוי שתענה נכון על שאלה מהנושא במבחן. לחיצה מתחילה סבב רק מהנושא.</p>${rows}`;
     app.querySelector('#b-back').onclick = () => go('home');
     app.querySelectorAll('.topic').forEach(b => b.onclick = () => go('session', { topic: b.dataset.t }));
+  }
+
+  // סיכום התקדמות בסוף סבב — מספרים מדויקים, בלי עיגול
+  function progressSummary(before, after) {
+    const gained = after.known - before.known;
+    const d = after.passChance - before.passChance;
+    return `<div class="card">
+      <div class="stat-row"><span>שאלות שאתה יודע</span><b><span dir="ltr">${num(after.known)} / ${num(after.total)}</span>${gained > 0 ? ` <span class="up">${plus(gained)}</span>` : ''}</b></div>
+      <div class="stat-row"><span>סיכוי לעבור</span><b>${pctD(after.passChance)} <span class="${d >= 0 ? 'up' : 'down'}">${signD(d)}</span></b></div>
+      <div class="stat-row"><span>אחוז הצלחה צפוי</span><b>${pctD(after.accuracy)} <span class="${after.accuracy >= before.accuracy ? 'up' : 'down'}">${signD(after.accuracy - before.accuracy)}</span></b></div>
+    </div>`;
   }
 
   // ---------- סבב לימוד ----------
@@ -214,7 +254,7 @@
     if (!items.length) { toast('אין שאלות כאן כרגע 🙂'); return go('home'); }
     const results = [];   // true/false לכל פריט
     let i = 0;
-    const readyBefore = SRS.readiness(Q, progress);
+    const before = SRS.stats(Q, progress);
     let timerHandle = null;
     cleanup = () => clearTimeout(timerHandle);
 
@@ -338,14 +378,13 @@
       // סופרים רק את הניסיון הראשון בכל שאלה
       let firstOk = 0, total = 0;
       items.forEach((it, k) => { if (!it.retry) { total++; if (results[k]) firstOk++; } });
-      const readyAfter = SRS.readiness(Q, progress);
-      const delta = pct(readyAfter) - pct(readyBefore);
+      const after = snapshot();
       const st = SRS.currentStreak(streak);
       app.innerHTML = `
         <div class="done-emoji">${firstOk === total ? '🏆' : firstOk >= total / 2 ? '🎉' : '💪'}</div>
         <h1 class="center">סיימת!</h1>
         <div class="big-score">${firstOk}/${total}</div>
-        <p class="center">${delta > 0 ? 'המוכנות עלתה ל-' + pct(readyAfter) + '% (+' + delta + ')' : 'מוכנות: ' + pct(readyAfter) + '%'}</p>
+        ${progressSummary(before, after)}
         ${st > 1 ? `<p class="center streak">🔥 ${st} ימים ברצף</p>` : ''}
         <div class="grow"></div>
         <button class="btn" id="b-more">עוד סבב</button>
@@ -364,6 +403,7 @@
     let items = exam ? exam.items : SRS.pickSession(Q, progress, settings.len, {});
     let i = 0;
     const results = [];
+    const before = SRS.stats(Q, progress);
     let alive = true;
     cleanup = () => { alive = false; exam && exam.stopClock && exam.stopClock(); };
 
@@ -405,8 +445,9 @@
     function done() {
       streak = SRS.updateStreak(streak); save();
       const ok = results.filter(Boolean).length;
+      const after = snapshot();
       app.innerHTML = `<div class="done-emoji">🎧</div><h1 class="center">סיימת סבב שמע!</h1>
-        <div class="big-score">${ok}/${results.length}</div><div class="grow"></div>
+        <div class="big-score">${ok}/${results.length}</div>${progressSummary(before, after)}<div class="grow"></div>
         <button class="btn" id="b-more">עוד סבב בשמע</button><button class="btn ghost" id="b-home">לבית</button>`;
       app.querySelector('#b-more').onclick = () => go('audio', {});
       app.querySelector('#b-home').onclick = () => go('home');
@@ -418,6 +459,7 @@
   function startExam(opts) {
     const items = SRS.pickExam(Q, 30);
     const answers = {};
+    const before = SRS.stats(Q, progress);
     const endAt = Date.now() + 40 * 60 * 1000;
     let clockEl = null;
     let tick = null;
@@ -446,11 +488,13 @@
         if (a !== undefined) progress[q.id] = SRS.grade(progress[q.id], correct);
       }
       streak = SRS.updateStreak(streak); save();
+      const after = snapshot();
       const pass = ok >= 26;
       app.innerHTML = `<div class="done-emoji">${pass ? '🚗' : '📚'}</div>
         <h1 class="center">${pass ? 'עברת!' : 'עוד לא — אבל מתקרבים'}</h1>
         <div class="big-score">${ok}/30</div>
         <p class="center muted">צריך 26 כדי לעבור</p>
+        ${progressSummary(before, after)}
         <button class="btn" id="b-home">לבית</button>
         ${wrong.length ? '<h2>מה פספסת</h2>' + wrong.map(q => `<div class="card mistake"><b>${esc(q.q)}</b>
           ${q.img ? `<img class="qimg" src="img/${q.img}">` : ''}
@@ -544,7 +588,7 @@
     app.querySelector('#b-reset').onclick = () => modal(`<h2>לאפס הכול?</h2><p>כל ההתקדמות והרצף יימחקו.</p>
       <button class="btn" id="m-no">לא, טעות</button><button class="btn ghost" id="m-yes" style="color:var(--bad)">כן, לאפס</button>`, m => {
       m.querySelector('#m-no').onclick = closeModal;
-      m.querySelector('#m-yes').onclick = () => { progress = {}; streak = null; settings.examUnlockedOnce = false; save(); closeModal(); toast('אופס. מתחילים מחדש'); go('home'); };
+      m.querySelector('#m-yes').onclick = () => { progress = {}; streak = null; history = {}; settings.examUnlockedOnce = false; save(); closeModal(); toast('אופס. מתחילים מחדש'); go('home'); };
     });
   }
 

@@ -35,4 +35,26 @@ assert.equal(S.currentStreak(st, now + 4 * S.DAY), 0);
 // data integrity
 Q.forEach(q => { assert(q.q && q.o.length >= 2 && q.c >= 0 && q.c < q.o.length, q.id); });
 const fs = require('fs'); Q.filter(q => q.img).forEach(q => assert(fs.existsSync('www/img/' + q.img), q.img));
+// smart stats
+let ss = S.stats(Q, {}, now);
+assert(ss.passChance >= 0 && ss.passChance < 0.01, 'fresh user should be ~0');
+assert.equal(ss.known, 0);
+assert(Math.abs(S.binomTail(30, 0.5, 0) - 1) < 1e-9);
+assert(Math.abs(S.binomTail(30, 1, 26) - 1) < 1e-9);
+assert(S.binomTail(30, 0.9, 26) > S.binomTail(30, 0.8, 26));
+// answering correctly raises the chance; first-try result stored
+let p2 = {}; Q.slice(0, 50).forEach(q => p2[q.id] = S.grade(null, true, now));
+assert.equal(p2[Q[0].id].f, 1);
+const s2 = S.stats(Q, p2, now);
+assert(s2.passChance > ss.passChance && s2.known === 50);
+// mistakes lower the estimate vs all-correct
+let p3 = {}; Q.slice(0, 50).forEach((q, i) => p3[q.id] = S.grade(null, i % 2 === 0, now));
+assert(S.stats(Q, p3, now).accuracy < s2.accuracy);
+// forgetting: long overdue lowers the estimate
+const late = S.stats(Q, p2, now + 60 * S.DAY);
+assert(late.accuracy < s2.accuracy);
+// weekly gain
+let h = S.recordHistory({}, 10, now - 10 * S.DAY); h = S.recordHistory(h, 30, now - 8 * S.DAY); h = S.recordHistory(h, 55, now);
+assert.equal(S.weeklyGain(h, 55, now), 25);
+assert.equal(S.weeklyGain(S.recordHistory({}, 12, now), 12, now), 12);
 console.log('all tests passed —', Q.length, 'questions');
