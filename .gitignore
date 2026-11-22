@@ -1,3 +1,8 @@
 node_modules/
+package-lock.json
+android/
+www/img/
+www/questions.js
+keystore/*.keystore
+lamed-plus/
 out/
-.DS_Store

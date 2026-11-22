@@ -17,8 +17,8 @@
 ## מקור השאלות
 1,276 שאלות לרישיון B, מהמאגר הרשמי של משרד התחבורה והבטיחות בדרכים ב-data.gov.il (CC-BY).
 העיבוד, התמונות ו-49 ההסברים הראשונים לקוחים מ-[LAMED+](https://github.com/Sergey-Bar/lamed-plus) (MIT).
-כדי לבנות מחדש: `python3 scripts/build-data.py <lamed-plus-dir> www`
+השאלות והתמונות לא שמורות בריפו: ה-workflow מוריד אותן בכל בנייה (גרסה נעולה) ומריץ `scripts/build-data.py`.
 
 ## בנייה
-כל push ל-`main` מריץ GitHub Actions: בדיקות, בניית APK ופרסום Release עם קובץ להתקנה.
-הבדיקות המקומיות רצות עם `npm test`.
+כל push ל-`main` מריץ GitHub Actions: הורדת המאגר, בדיקות, יצירת פרויקט ה-Android (`npx cap add android` ואחריו `scripts/patch-android.py`), אייקונים, בניית APK ופרסום Release.
+בדיקות מקומיות: `npm test` (דורש קודם את `www/questions.js`).

@@ -29,5 +29,5 @@ for k,px in dens.items():
     fg_px=int(px*108/48); fb=fg_px*4
     fg=sign(fb, fb*0.27)
     fg.resize((fg_px,fg_px),Image.LANCZOS).save(f'{res}/mipmap-{k}/ic_launcher_foreground.png')
-big=Image.new('RGBA',(512,512),(246,244,239,255)); big.alpha_composite(sign(512,60)); big.save('/home/claude/shots/icon.png')
+
 print('ok')

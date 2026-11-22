@@ -8,6 +8,11 @@ on:
 permissions:
   contents: write
 
+env:
+  # מאגר השאלות (משרד התחבורה, CC-BY) כפי שעובד ב-LAMED+ (MIT) — נעול לגרסה מסוימת
+  LAMED_REPO: https://github.com/Sergey-Bar/lamed-plus.git
+  LAMED_SHA: 729fb2a4d70d551ff6028ed902441d8048e8eef1
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -19,21 +24,56 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
       - name: Install
-        run: npm ci
+        run: |
+          npm install --no-audit --no-fund
+          pip install pillow
+
+      - name: Fetch question bank + images
+        run: |
+          mkdir lamed-plus && cd lamed-plus
+          git init -q
+          git remote add origin "$LAMED_REPO"
+          git fetch -q --depth 1 origin "$LAMED_SHA"
+          git checkout -q FETCH_HEAD
+          cd ..
+          python3 scripts/build-data.py lamed-plus www
 
       - name: Tests (logic + data)
         run: npm test
-
-      - name: Sync web into Android
-        run: npx cap sync android
 
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 21
+
+      - name: Signing key (created once, then reused so updates install over the old version)
+        run: |
+          mkdir -p keystore
+          if [ -f keystore/theory.keystore.b64 ]; then
+            base64 -d keystore/theory.keystore.b64 > keystore/theory.keystore
+          else
+            keytool -genkeypair -keystore keystore/theory.keystore -storepass theoryapp -keypass theoryapp \
+              -alias theory -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Theory App, O=Personal, C=IL"
+            base64 -w 76 keystore/theory.keystore > keystore/theory.keystore.b64
+            git config user.name "github-actions[bot]"
+            git config user.email "41898699+github-actions[bot]@users.noreply.github.com"
+            git add keystore/theory.keystore.b64
+            git commit -m "Add signing key"
+            git push
+          fi
+
+      - name: Create Android project
+        run: |
+          npx cap add android
+          python3 scripts/patch-android.py
+          python3 scripts/make-icons.py
+          npx cap sync android
 
       - uses: gradle/actions/setup-gradle@v4
 
