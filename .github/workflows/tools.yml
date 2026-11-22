@@ -1,0 +1,21 @@
+name: Tools — fetch official sign table
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download official sign table (Ministry of Transport) and extract text
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils
+          mkdir out
+          curl -sSL --fail -o out/luach-2021.pdf "https://meyda.education.gov.il/files/zahav/ALYesodi/luach-tamrurim-2021.pdf" || true
+          curl -sSL --fail -o out/luach-2018.pdf "https://www.gov.il/BlobFolder/dynamiccollectorresultitem/answer-freedom-information-3980/he/%D7%9C%D7%95%D7%97%20%D7%AA%D7%9E%D7%A8%D7%95%D7%A8%D7%99%D7%9D%20%D7%99%D7%A0%D7%95%D7%90%D7%A8%202018.pdf" || true
+          for f in out/*.pdf; do pdftotext -layout "$f" "${f%.pdf}.txt" || true; pdftotext -raw "$f" "${f%.pdf}.raw.txt" || true; done
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sign-table
+          path: out/
